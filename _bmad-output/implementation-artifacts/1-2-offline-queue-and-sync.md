@@ -83,5 +83,34 @@ This is a core trust requirement: capture must work even when connectivity is no
 ---
 
 ## Story Status
-- Status: **ready-for-dev**
-- Completion Note: Ultimate context engine analysis completed - comprehensive developer guide created.
+- Status: **done**
+- Completion Note: Offline sync queue implemented; notes created while offline queue and sync when online. UI reflects pending/synced/failed states.
+
+## Tasks
+- [x] Implement offline sync queue (IndexedDB persistence, retry logic, backoff).
+- [x] Integrate sync queue with note creation flow (pending + synced + failed states).
+- [x] Add UI indicators and retry action for failed syncs.
+- [x] Add unit tests for sync queue behavior (queue persistence, retries, success path).
+- [x] Add integration test for offline note creation and auto-sync on reconnect.
+- [x] Update documentation (story file) with dev record and file list.
+
+## Dev Agent Record
+### Debug Log
+- Started implementing offline sync queue service following story 1-2.
+- Created `packages/frontend/src/services/sync/queue.ts` with IndexedDB-backed persistence and retry/backoff logic.
+- Refactored note API calls into `packages/frontend/src/services/notesApi.ts`.
+- Updated UI in `packages/frontend/src/App.tsx` to show sync status and allow retry.
+
+### Completion Notes
+- Offline notes are queued in IndexedDB and automatically synced when connectivity returns.
+- Notes show `pending`, `failed`, or `synced` states in the UI.
+- Retrying a failed sync re-attempts the request and updates status accordingly.
+- Tests cover queue retries and offline/online behavior.
+
+## File List
+- `packages/frontend/src/services/sync/queue.ts`
+- `packages/frontend/src/services/notesApi.ts`
+- `packages/frontend/src/App.tsx`
+- `packages/frontend/src/styles.css`
+- `packages/frontend/src/services/sync/queue.test.ts`
+- `packages/frontend/src/App.test.tsx`

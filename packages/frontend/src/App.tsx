@@ -1,78 +1,98 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { notesApi, type Note } from "./services/notesApi";
+import { OfflineSyncQueue, type SyncStatus, type SyncStatusEvent } from "./services/sync/queue";
 
-export type Note = {
-  id: string;
-  content: string;
-  completed: boolean;
-  deleted: boolean;
-  createdAt: string;
-  updatedAt: string;
+type NoteWithSync = Note & {
+  syncStatus?: SyncStatus;
+  syncError?: string;
+  tempId?: string;
 };
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
-const api = {
-  list: async (): Promise<Note[]> => {
-    const res = await fetch("/api/notes");
-    if (!res.ok) throw new Error("Failed to load notes");
-    return res.json();
-  },
-  create: async (content: string): Promise<Note> => {
-    const res = await fetch("/api/notes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content }),
-    });
-    if (!res.ok) {
-      const body = await res.json();
-      throw new Error(body?.error ?? "Failed to create note");
-    }
-    return res.json();
-  },
-  update: async (id: string, payload: Partial<Pick<Note, "content" | "completed" | "deleted">>) => {
-    const res = await fetch(`/api/notes/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const body = await res.json();
-      throw new Error(body?.error ?? "Failed to update note");
-    }
-    return res.json();
-  },
-  delete: async (id: string) => {
-    const res = await fetch(`/api/notes/${id}`, { method: "DELETE" });
-    if (!res.ok) {
-      const body = await res.json();
-      throw new Error(body?.error ?? "Failed to delete note");
-    }
-  },
-};
+const createOfflineNote = (tempId: string, content: string): NoteWithSync => ({
+  id: tempId,
+  tempId,
+  content,
+  completed: false,
+  deleted: false,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  syncStatus: "pending",
+});
 
 export default function App() {
-  const [notes, setNotes] = useState<Note[]>([]);
+  const [notes, setNotes] = useState<NoteWithSync[]>([]);
   const [draft, setDraft] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
 
-  const sortedNotes = useMemo(
-    () => [...notes].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
-    [notes]
-  );
+  const syncCallback = useCallback((event: SyncStatusEvent) => {
+    setNotes((prev) => {
+      const existingIndex = prev.findIndex((n) => n.id === event.tempId);
 
-  const loadNotes = async () => {
-    try {
-      setError(null);
-      const data = await api.list();
-      setNotes(data);
-    } catch (err: any) {
-      setError(err?.message ?? "Failed to load notes");
-    }
-  };
+      if (event.status === "synced" && event.note) {
+        // Replace the offline note with the server-synced note.
+        const withoutTemp = prev.filter((n) => n.id !== event.tempId && n.id !== event.note!.id);
+        return [
+          { ...event.note, syncStatus: "synced" },
+          ...withoutTemp,
+        ];
+      }
+
+      if (existingIndex === -1) return prev;
+
+      const updated = [...prev];
+      updated[existingIndex] = {
+        ...updated[existingIndex],
+        syncStatus: event.status,
+        syncError: event.error,
+      };
+      return updated;
+    });
+  }, []);
+
+  const queue = useMemo(() => new OfflineSyncQueue({ onStatus: syncCallback }), [syncCallback]);
 
   useEffect(() => {
-    loadNotes();
+    void queue.init();
+
+    const handleConnectivity = () => {
+      setIsOnline(navigator.onLine);
+    };
+
+    window.addEventListener("online", handleConnectivity);
+    window.addEventListener("offline", handleConnectivity);
+
+    return () => {
+      window.removeEventListener("online", handleConnectivity);
+      window.removeEventListener("offline", handleConnectivity);
+      queue.dispose();
+    };
+  }, [queue]);
+
+  useEffect(() => {
+    let canceled = false;
+    const load = async () => {
+      try {
+        setError(null);
+        const data = await notesApi.list();
+        if (canceled) return;
+        setNotes(data.map((n) => ({ ...n, syncStatus: "synced" } as NoteWithSync)));
+
+        const pending = await queue.getPendingNotes();
+        if (canceled || !pending) return;
+        setNotes((prev) => [...pending, ...prev]);
+      } catch (err: any) {
+        if (!canceled) setError(err?.message ?? "Failed to load notes");
+      }
+    };
+
+    load();
+    return () => {
+      canceled = true;
+    };
   }, []);
 
   const saveNote = async () => {
@@ -80,37 +100,52 @@ export default function App() {
     setSaveStatus("saving");
     setError(null);
 
+    const content = draft.trim();
+    const tempId = `temp-${crypto.randomUUID()}`;
+    const offlineNote = createOfflineNote(tempId, content);
+
+    setNotes((prev) => [offlineNote, ...prev]);
+    setDraft("");
+    setSaveStatus("saved");
+
     try {
-      const created = await api.create(draft.trim());
-      setNotes((prev) => [created, ...prev]);
-      setDraft("");
-      setSaveStatus("saved");
+      await queue.enqueueCreate(tempId, content);
     } catch (err: any) {
-      setError(err?.message ?? "Failed to save note");
-      setSaveStatus("error");
+      setError(err?.message ?? "Failed to queue note for sync");
+      setNotes((prev) =>
+        prev.map((n) =>
+          n.id === tempId ? { ...n, syncStatus: "failed", syncError: err?.message ?? "" } : n
+        )
+      );
     }
   };
 
-  const toggleComplete = async (note: Note) => {
+  const toggleComplete = async (note: NoteWithSync) => {
     try {
-      const updated = await api.update(note.id, { completed: !note.completed });
-      setNotes((prev) => prev.map((n) => (n.id === note.id ? updated : n)));
+      const updated = await notesApi.update(note.id, { completed: !note.completed });
+      setNotes((prev) => prev.map((n) => (n.id === note.id ? { ...updated, syncStatus: "synced" } : n)));
     } catch (err: any) {
       setError(err?.message ?? "Failed to update note");
     }
   };
 
-  const deleteNote = async (note: Note) => {
+  const deleteNote = async (note: NoteWithSync) => {
     try {
-      await api.delete(note.id);
+      await notesApi.delete(note.id);
       setNotes((prev) => prev.filter((n) => n.id !== note.id));
     } catch (err: any) {
       setError(err?.message ?? "Failed to delete note");
     }
   };
 
+  const retrySync = async (note: NoteWithSync) => {
+    if (!note.tempId) return;
+    await queue.retry(note.tempId);
+  };
+
   const statusLabel = useMemo(() => {
     if (error) return `Error: ${error}`;
+    if (!isOnline) return "Offline — changes will sync when back online";
     switch (saveStatus) {
       case "saving":
         return "Saving...";
@@ -121,7 +156,15 @@ export default function App() {
       default:
         return "";
     }
-  }, [error, saveStatus]);
+  }, [error, isOnline, saveStatus]);
+
+  const sortedNotes = useMemo(
+    () =>
+      [...notes].sort((a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      ),
+    [notes]
+  );
 
   return (
     <div className="app">
@@ -154,18 +197,36 @@ export default function App() {
           <ul>
             {sortedNotes.map((note) => (
               <li key={note.id} className={note.completed ? "completed" : "pending"}>
-                <div className="note-content">
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={note.completed}
-                      onChange={() => toggleComplete(note)}
-                    />
-                    <span>{note.content}</span>
-                  </label>
+                <div>
+                  <div className="note-content">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={note.completed}
+                        onChange={() => toggleComplete(note)}
+                        disabled={note.syncStatus !== "synced"}
+                      />
+                      <span>{note.content}</span>
+                    </label>
+                  </div>
+                  <div className="note-meta">
+                    {note.syncStatus === "pending" && (
+                      <span className="sync-status pending">Pending sync…</span>
+                    )}
+                    {note.syncStatus === "failed" && (
+                      <span className="sync-status failed">
+                        Sync failed.
+                        <button className="retry" onClick={() => retrySync(note)}>
+                          Retry
+                        </button>
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="note-actions">
-                  <button onClick={() => deleteNote(note)}>Delete</button>
+                  <button onClick={() => deleteNote(note)} disabled={note.syncStatus !== "synced"}>
+                    Delete
+                  </button>
                 </div>
               </li>
             ))}

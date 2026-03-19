@@ -94,6 +94,32 @@ header h1 {
   cursor: pointer;
 }
 
+.note-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: #9ca3af;
+}
+
+.sync-status.pending {
+  color: #fbbf24;
+}
+
+.sync-status.failed {
+  color: #f87171;
+}
+
+.retry {
+  background: transparent;
+  border: none;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  margin-left: 0.25rem;
+}
+
 .empty {
   color: #9ca3af;
 }
