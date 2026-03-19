@@ -177,7 +177,6 @@ export default function App() {
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          onBlur={saveNote}
           placeholder="Type your note here..."
           rows={4}
         />

@@ -102,10 +102,11 @@ This is a core trust requirement: capture must work even when connectivity is no
 - Updated UI in `packages/frontend/src/App.tsx` to show sync status and allow retry.
 
 ### Completion Notes
-- Offline notes are queued in IndexedDB and automatically synced when connectivity returns.
-- Notes show `pending`, `failed`, or `synced` states in the UI.
+- Offline notes are queued in IndexedDB (per-test unique DB in E2E to avoid flakiness) and automatically synced when connectivity returns.
+- Notes show `pending`, `failed`, or `synced` states in the UI, with retry support.
 - Retrying a failed sync re-attempts the request and updates status accordingly.
-- Tests cover queue retries and offline/online behavior.
+- Unit tests cover queue retries, failure handling, and persistence.
+- Playwright E2E tests cover the user journeys (empty state, create, complete, delete, error handling) with a mocked backend layer.
 
 ## File List
 - `packages/frontend/src/services/sync/queue.ts`

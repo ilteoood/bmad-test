@@ -56,4 +56,30 @@ describe("OfflineSyncQueue", () => {
 
     queue.dispose();
   });
+
+  it("marks a note as failed when sync errors occur", async () => {
+    const events: SyncStatusEvent[] = [];
+    const mockApi = {
+      create: vi.fn().mockRejectedValue(new Error("network error")),
+    };
+
+    const store = new InMemoryStore();
+    const queue = new OfflineSyncQueue({
+      store,
+      api: mockApi as any,
+      maxRetries: 1,
+      maxBackoffMs: 10,
+      onStatus: (event) => {
+        events.push(event);
+      },
+    });
+
+    await queue.init();
+    await queue.enqueueCreate("temp-2", "offline note");
+    await vi.runAllTimersAsync();
+
+    expect(events.some((e) => e.tempId === "temp-2" && e.status === "failed")).toBe(true);
+
+    queue.dispose();
+  });
 });

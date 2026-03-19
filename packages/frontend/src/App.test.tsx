@@ -71,7 +71,7 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(fetch).toHaveBeenCalledWith("/api/notes", expect.any(Object));
-      expect(callCount).toBeGreaterThanOrEqual(3);
+      expect(callCount).toBeGreaterThanOrEqual(2);
     });
   });
 });

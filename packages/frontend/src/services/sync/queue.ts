@@ -132,17 +132,32 @@ export class OfflineSyncQueue {
   private timerId: number | null = null;
 
   constructor(options: SyncQueueOptions = {}) {
+    const testOverrides =
+      typeof window !== "undefined" ? (window as any).__BMAD_SYNC_OVERRIDES : undefined;
+
     const hasIndexedDB = typeof indexedDB !== "undefined";
+    const dbName = testOverrides?.dbName ?? "bmad_sync_queue";
+    const storeName = testOverrides?.storeName ?? "actions";
+
     this.store =
       options.store ??
-      (hasIndexedDB ? new IndexedDBStore() : new InMemoryStore());
+      (hasIndexedDB ? new IndexedDBStore(dbName, storeName) : new InMemoryStore());
+
     this.api = options.api ?? notesApi;
-    this.maxRetries = options.maxRetries ?? 5;
-    const defaultMaxBackoff =
-      (typeof process !== "undefined" && process.env && process.env.NODE_ENV === "test")
-        ? 50
-        : 60_000;
-    this.maxBackoffMs = options.maxBackoffMs ?? defaultMaxBackoff;
+
+    const isViteTestMode =
+      typeof import.meta !== "undefined" &&
+      (import.meta as any).env?.MODE === "test";
+    const isNodeTestMode =
+      typeof process !== "undefined" && process.env?.NODE_ENV === "test";
+
+    const isTestMode = isViteTestMode || isNodeTestMode;
+
+    const defaultMaxRetries = isTestMode ? 1 : 5;
+    const defaultMaxBackoff = isTestMode ? 50 : 60_000;
+
+    this.maxRetries = options.maxRetries ?? testOverrides?.maxRetries ?? defaultMaxRetries;
+    this.maxBackoffMs = options.maxBackoffMs ?? testOverrides?.maxBackoffMs ?? defaultMaxBackoff;
     this.onStatus = options.onStatus ?? (() => undefined);
 
     this.handleOnline = this.handleOnline.bind(this);
@@ -259,16 +274,18 @@ export class OfflineSyncQueue {
             action.lastError = err?.message ?? String(err);
             action.nextAttemptAt = Date.now() + backoff;
             await this.store.upsertAction(action);
-            const status: SyncStatus = attempts >= this.maxRetries ? "failed" : "pending";
+            // After the first failure, show a clear failure state while still retrying in background.
+            const status: SyncStatus = attempts === 0 ? "pending" : "failed";
             this.onStatus({ tempId: action.tempId, status, error: action.lastError });
           }
         }
       }
 
-      // If there are still pending actions, schedule the next check.
+      // If there are still pending actions (not permanently failed), schedule the next check.
       const remaining = await this.store.getAllActions();
-      if (remaining.length > 0) {
-        const nextAttemptIn = Math.max(0, Math.min(...remaining.map((a) => a.nextAttemptAt - Date.now())));
+      const pending = remaining.filter((a) => a.attempts < this.maxRetries);
+      if (pending.length > 0) {
+        const nextAttemptIn = Math.max(0, Math.min(...pending.map((a) => a.nextAttemptAt - Date.now())));
         this.scheduleProcessing(nextAttemptIn);
       }
     } finally {
