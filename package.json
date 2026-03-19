@@ -6,8 +6,13 @@
     "packages/*"
   ],
   "scripts": {
-    "test": "npm -ws test",
-    "build": "npm -ws build",
-    "lint": "npm -ws lint"
+    "test": "npm --workspaces run test",
+    "build": "npm --workspaces run build",
+    "lint": "npm --workspaces run lint",
+    "e2e": "npm --workspace packages/frontend run e2e",
+    "ci": "npm run lint && npm test && npm run e2e"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
   }
 }

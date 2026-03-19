@@ -4,8 +4,7 @@
     "outDir": "dist",
     "rootDir": "src",
     "types": ["node", "vitest/globals"],
-    "allowImportingTsExtensions": true,
-    "noEmit": true
+    "allowImportingTsExtensions": true
   },
   "include": ["src"],
   "references": []

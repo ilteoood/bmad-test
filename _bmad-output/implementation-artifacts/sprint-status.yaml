@@ -46,5 +46,5 @@ development_status:
   1-1-core-note-capture: review
   1-2-offline-queue-and-sync: done
   1-3-undo-restore: review
-  1-4-ci-and-docker: ready-for-dev
+  1-4-ci-and-docker: done
   epic-1-retrospective: optional

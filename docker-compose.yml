@@ -1,0 +1,30 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./:/app:cached
+      - /app/node_modules
+      - ./_bmad-output/data:/app/_bmad-output/data
+    environment:
+      - NODE_ENV=development
+    command: ["npm", "--workspace", "packages/backend", "run", "dev"]
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    volumes:
+      - ./:/app:cached
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - VITE_BACKEND_URL=http://backend:3000
+    command: ["npm", "--workspace", "packages/frontend", "run", "dev", "--", "--host", "0.0.0.0"]
