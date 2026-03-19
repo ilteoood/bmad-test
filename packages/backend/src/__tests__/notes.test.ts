@@ -40,7 +40,7 @@ describe("Notes API", () => {
     expect(note.content).toBe("My first note");
   });
 
-  it("updates a note completed and deletes a note", async () => {
+  it("updates a note completed, supports trashed listing, restore, and permanent delete", async () => {
     const app = createApp();
 
     const createRes = await request(app)
@@ -56,10 +56,39 @@ describe("Notes API", () => {
       .expect(200);
     expect(updateRes.body.completed).toBe(true);
 
+    // Soft-delete (default behavior)
     await request(app).delete(`/api/notes/${noteId}`).expect(204);
 
     const listRes = await request(app).get("/api/notes").expect(200);
     const deleted = listRes.body.find((n: any) => n.id === noteId);
     expect(deleted).toBeUndefined();
+
+    // Deleted note should appear in trashed listing
+    const trashedRes = await request(app).get("/api/notes?trashed=true").expect(200);
+    const trashed = trashedRes.body.find((n: any) => n.id === noteId);
+    expect(trashed).toBeDefined();
+    expect(trashed.deleted).toBe(true);
+
+    // Restore via patch
+    const restoreRes = await request(app)
+      .patch(`/api/notes/${noteId}`)
+      .send({ deleted: false })
+      .expect(200);
+    expect(restoreRes.body.deleted).toBe(false);
+
+    const restoredListRes = await request(app).get("/api/notes").expect(200);
+    const restored = restoredListRes.body.find((n: any) => n.id === noteId);
+    expect(restored).toBeDefined();
+
+    // Permanently delete
+    await request(app)
+      .delete(`/api/notes/${noteId}?permanent=true`)
+      .expect(204);
+
+    const trashedAfterPermanentDelete = await request(app)
+      .get("/api/notes?trashed=true")
+      .expect(200);
+    const permanentlyDeleted = trashedAfterPermanentDelete.body.find((n: any) => n.id === noteId);
+    expect(permanentlyDeleted).toBeUndefined();
   });
 });

@@ -18,7 +18,8 @@ function validateStringField(value: unknown, fieldName: string): string {
 
 router.get("/", async (req, res) => {
   try {
-    const notes = await listNotes();
+    const trashed = String(req.query.trashed).toLowerCase() === "true";
+    const notes = await listNotes({ trashed });
     res.json(notes);
   } catch (err) {
     console.error(err);
@@ -65,7 +66,8 @@ router.patch("/:id", async (req, res) => {
 router.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    await deleteNote(id);
+    const permanent = String(req.query.permanent).toLowerCase() === "true";
+    await deleteNote(id, { permanent });
     res.status(204).send();
   } catch (err) {
     console.error(err);

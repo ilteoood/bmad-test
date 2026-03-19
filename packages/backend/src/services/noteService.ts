@@ -28,12 +28,37 @@ export const mapNote = (note: any): NoteResponse => ({
   updatedAt: note.updatedAt.toISOString(),
 });
 
-export async function listNotes(): Promise<NoteResponse[]> {
+export type ListNotesOptions = {
+  /**
+   * When true, only return notes that are soft-deleted.
+   * When false or omitted, return only active notes.
+   */
+  trashed?: boolean;
+};
+
+export async function listNotes(options: ListNotesOptions = {}): Promise<NoteResponse[]> {
   const notes = await prisma.note.findMany({
-    where: { deleted: false },
+    where: { deleted: options.trashed === true },
     orderBy: { createdAt: "desc" },
   });
   return notes.map(mapNote);
+}
+
+export type DeleteNoteOptions = {
+  /** Permanently remove the note from the database (hard delete). */
+  permanent?: boolean;
+};
+
+export async function deleteNote(id: string, options: DeleteNoteOptions = {}): Promise<void> {
+  if (options.permanent) {
+    await prisma.note.delete({ where: { id } });
+    return;
+  }
+
+  await prisma.note.update({
+    where: { id },
+    data: { deleted: true },
+  });
 }
 
 export async function createNote(input: NoteCreateInput): Promise<NoteResponse> {
@@ -49,11 +74,4 @@ export async function updateNote(id: string, input: NoteUpdateInput): Promise<No
     data: input,
   });
   return mapNote(note);
-}
-
-export async function deleteNote(id: string): Promise<void> {
-  await prisma.note.update({
-    where: { id },
-    data: { deleted: true },
-  });
 }

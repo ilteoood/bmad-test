@@ -74,4 +74,49 @@ describe("App", () => {
       expect(callCount).toBeGreaterThanOrEqual(2);
     });
   });
+
+  it("shows an undo toast after delete and restores the note when undo is clicked", async () => {
+    const note = {
+      id: "note-1",
+      content: "Test note",
+      completed: false,
+      deleted: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    vi.stubGlobal("fetch", vi.fn((input, init) => {
+      if (typeof input === "string" && input === "/api/notes" && !init) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([note]) });
+      }
+
+      if (typeof input === "string" && input.startsWith("/api/notes/") && init?.method === "DELETE") {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+      }
+
+      if (typeof input === "string" && input.startsWith("/api/notes/") && init?.method === "PATCH") {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ ...note, deleted: false }) });
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch call: ${input}`));
+    }));
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText(note.content)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /delete/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/note deleted/i)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /undo/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(note.content)).toBeInTheDocument();
+    });
+  });
 });

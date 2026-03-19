@@ -17,9 +17,17 @@ const checkResponse = async <T>(res: Response): ApiResponse<T> => {
   return res.json();
 };
 
+export type ListNotesOptions = {
+  /** Return only deleted notes when true. */
+  trashed?: boolean;
+};
+
 export const notesApi = {
-  list: async (): ApiResponse<Note[]> => {
-    const res = await fetch("/api/notes");
+  list: async (options: ListNotesOptions = {}): ApiResponse<Note[]> => {
+    const params = new URLSearchParams();
+    if (options.trashed) params.set("trashed", "true");
+
+    const res = await fetch(`/api/notes${params.toString() ? `?${params.toString()}` : ""}`);
     return checkResponse<Note[]>(res);
   },
   create: async (content: string): ApiResponse<Note> => {
@@ -38,11 +46,24 @@ export const notesApi = {
     });
     return checkResponse<Note>(res);
   },
-  delete: async (id: string) => {
-    const res = await fetch(`/api/notes/${id}`, { method: "DELETE" });
+  delete: async (id: string, options: { permanent?: boolean } = {}) => {
+    const params = new URLSearchParams();
+    if (options.permanent) params.set("permanent", "true");
+
+    const res = await fetch(`/api/notes/${id}${params.toString() ? `?${params.toString()}` : ""}`, {
+      method: "DELETE",
+    });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       throw new Error((body as any)?.error ?? "Failed to delete note");
     }
+  },
+  restore: async (id: string): ApiResponse<Note> => {
+    const res = await fetch(`/api/notes/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deleted: false }),
+    });
+    return checkResponse<Note>(res);
   },
 };

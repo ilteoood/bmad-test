@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import TrashView from "./components/TrashView";
+import UndoSnackbar from "./components/UndoSnackbar";
 import { notesApi, type Note } from "./services/notesApi";
 import { OfflineSyncQueue, type SyncStatus, type SyncStatusEvent } from "./services/sync/queue";
 
@@ -22,11 +24,15 @@ const createOfflineNote = (tempId: string, content: string): NoteWithSync => ({
 });
 
 export default function App() {
+  const [view, setView] = useState<"inbox" | "trash">("inbox");
   const [notes, setNotes] = useState<NoteWithSync[]>([]);
+  const [trashNotes, setTrashNotes] = useState<Note[]>([]);
   const [draft, setDraft] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+  const [undoNote, setUndoNote] = useState<NoteWithSync | null>(null);
+  const undoTimeoutRef = useRef<number | null>(null);
 
   const syncCallback = useCallback((event: SyncStatusEvent) => {
     setNotes((prev) => {
@@ -72,7 +78,7 @@ export default function App() {
     };
   }, [queue]);
 
-  useEffect(() => {
+  const loadInbox = useCallback(() => {
     let canceled = false;
     const load = async () => {
       try {
@@ -93,7 +99,45 @@ export default function App() {
     return () => {
       canceled = true;
     };
+  }, [queue]);
+
+  const loadTrash = useCallback(async () => {
+    try {
+      setError(null);
+      const data = await notesApi.list({ trashed: true });
+      setTrashNotes(data);
+    } catch (err: any) {
+      setError(err?.message ?? "Failed to load trashed notes");
+    }
   }, []);
+
+  useEffect(() => {
+    if (view === "inbox") {
+      return loadInbox();
+    }
+
+    if (view === "trash") {
+      void loadTrash();
+    }
+
+    return;
+  }, [loadInbox, loadTrash, view]);
+
+  const clearUndo = () => {
+    setUndoNote(null);
+    if (undoTimeoutRef.current) {
+      window.clearTimeout(undoTimeoutRef.current);
+      undoTimeoutRef.current = null;
+    }
+  };
+
+  const scheduleUndo = (note: NoteWithSync) => {
+    clearUndo();
+    setUndoNote(note);
+    undoTimeoutRef.current = window.setTimeout(() => {
+      clearUndo();
+    }, 5000);
+  };
 
   const saveNote = async () => {
     if (!draft.trim()) return;
@@ -133,6 +177,7 @@ export default function App() {
     try {
       await notesApi.delete(note.id);
       setNotes((prev) => prev.filter((n) => n.id !== note.id));
+      scheduleUndo(note);
     } catch (err: any) {
       setError(err?.message ?? "Failed to delete note");
     }
@@ -140,7 +185,43 @@ export default function App() {
 
   const retrySync = async (note: NoteWithSync) => {
     if (!note.tempId) return;
-    await queue.retry(note.tempId);
+    try {
+      await queue.retry(note.tempId);
+    } catch (err: any) {
+      setError(err?.message ?? "Failed to retry sync");
+    }
+  };
+
+  const restoreNote = async (note: Note) => {
+    try {
+      const restored = await notesApi.restore(note.id);
+      setNotes((prev) => [{ ...restored, syncStatus: "synced" }, ...prev]);
+      setTrashNotes((prev) => prev.filter((n) => n.id !== note.id));
+      clearUndo();
+    } catch (err: any) {
+      setError(err?.message ?? "Failed to restore note");
+    }
+  };
+
+  const deletePermanently = async (note: Note) => {
+    try {
+      await notesApi.delete(note.id, { permanent: true });
+      setTrashNotes((prev) => prev.filter((n) => n.id !== note.id));
+    } catch (err: any) {
+      setError(err?.message ?? "Failed to permanently delete note");
+    }
+  };
+
+  const undoDelete = async () => {
+    if (!undoNote) return;
+    try {
+      const restored = await notesApi.restore(undoNote.id);
+      setNotes((prev) => [{ ...restored, syncStatus: "synced" }, ...prev]);
+    } catch (err: any) {
+      setError(err?.message ?? "Failed to undo delete");
+    } finally {
+      clearUndo();
+    }
   };
 
   const statusLabel = useMemo(() => {
@@ -173,65 +254,102 @@ export default function App() {
         <p className="subtitle">Type a note and it will be saved instantly.</p>
       </header>
 
-      <section className="input">
-        <textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="Type your note here..."
-          rows={4}
-        />
-        <div className="actions">
-          <button disabled={!draft.trim() || saveStatus === "saving"} onClick={saveNote}>
-            Save
-          </button>
-          <span className="status">{statusLabel}</span>
-        </div>
-      </section>
+      <div className="view-toggle">
+        <button
+          className={view === "inbox" ? "active" : ""}
+          onClick={() => setView("inbox")}
+        >
+          Inbox
+        </button>
+        <button
+          className={view === "trash" ? "active" : ""}
+          onClick={() => setView("trash")}
+        >
+          Trash
+        </button>
+      </div>
 
-      <section className="notes">
-        <h2>Inbox</h2>
-        {sortedNotes.length === 0 ? (
-          <p className="empty">No notes yet. Start typing above.</p>
-        ) : (
-          <ul>
-            {sortedNotes.map((note) => (
-              <li key={note.id} className={note.completed ? "completed" : "pending"}>
-                <div>
-                  <div className="note-content">
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={note.completed}
-                        onChange={() => toggleComplete(note)}
-                        disabled={note.syncStatus !== "synced"}
-                      />
-                      <span>{note.content}</span>
-                    </label>
-                  </div>
-                  <div className="note-meta">
-                    {note.syncStatus === "pending" && (
-                      <span className="sync-status pending">Pending sync…</span>
-                    )}
-                    {note.syncStatus === "failed" && (
-                      <span className="sync-status failed">
-                        Sync failed.
-                        <button className="retry" onClick={() => retrySync(note)}>
-                          Retry
-                        </button>
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className="note-actions">
-                  <button onClick={() => deleteNote(note)} disabled={note.syncStatus !== "synced"}>
-                    Delete
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      {view === "inbox" && (
+        <>
+          <section className="input">
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="Type your note here..."
+              rows={4}
+            />
+            <div className="actions">
+              <button disabled={!draft.trim() || saveStatus === "saving"} onClick={saveNote}>
+                Save
+              </button>
+              <span className="status">{statusLabel}</span>
+            </div>
+          </section>
+
+          <section className="notes">
+            <h2>Inbox</h2>
+            {sortedNotes.length === 0 ? (
+              <p className="empty">No notes yet. Start typing above.</p>
+            ) : (
+              <ul>
+                {sortedNotes.map((note) => (
+                  <li key={note.id} className={note.completed ? "completed" : "pending"}>
+                    <div>
+                      <div className="note-content">
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={note.completed}
+                            onChange={() => toggleComplete(note)}
+                            disabled={note.syncStatus !== "synced"}
+                          />
+                          <span>{note.content}</span>
+                        </label>
+                      </div>
+                      <div className="note-meta">
+                        {note.syncStatus === "pending" && (
+                          <span className="sync-status pending">Pending sync…</span>
+                        )}
+                        {note.syncStatus === "failed" && (
+                          <span className="sync-status failed">
+                            Sync failed.
+                            <button className="retry" onClick={() => retrySync(note)}>
+                              Retry
+                            </button>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="note-actions">
+                      <button className="danger" onClick={() => deleteNote(note)} disabled={note.syncStatus !== "synced"}>
+                        Delete
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </>
+      )}
+
+      {view === "trash" && (
+        <TrashView
+          notes={trashNotes}
+          onRestore={restoreNote}
+          onDeletePermanently={deletePermanently}
+          onClose={() => setView("inbox")}
+        />
+      )}
+
+      {undoNote && (
+        <UndoSnackbar
+          message="Note deleted"
+          actionLabel="Undo"
+          onAction={undoDelete}
+          onClose={clearUndo}
+        />
+      )}
     </div>
   );
 }
