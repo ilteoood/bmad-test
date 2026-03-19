@@ -253,6 +253,7 @@ export default function App() {
         <h1>Note Capture</h1>
         <p className="subtitle">Type a note and it will be saved instantly.</p>
       </header>
+      <main>
 
       <div className="view-toggle">
         <button
@@ -350,6 +351,7 @@ export default function App() {
           onClose={clearUndo}
         />
       )}
+      </main>
     </div>
   );
 }
