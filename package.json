@@ -10,6 +10,8 @@
     "build": "npm --workspaces run build",
     "lint": "npm --workspaces run lint",
     "e2e": "npm --workspace packages/frontend run e2e",
+    "coverage": "npm --workspaces run test -- --coverage",
+    "audit": "npm audit",
     "ci": "npm run lint && npm test && npm run e2e"
   },
   "devDependencies": {

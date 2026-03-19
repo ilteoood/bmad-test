@@ -39,6 +39,18 @@ Run the full QA pipeline locally (mirrors CI):
 npm run ci
 ```
 
+Generate coverage reports:
+
+```bash
+npm run coverage
+```
+
+Run a security audit:
+
+```bash
+npm run audit
+```
+
 ## Containerized Development (Docker)
 
 Start the full dev stack (frontend + backend) in Docker:

@@ -36,6 +36,43 @@ This runs the same sequence as the CI pipeline:
 - run unit tests
 - run end-to-end tests
 
+## Coverage Report
+
+Run coverage collection for backend and frontend tests:
+
+```bash
+npm run coverage
+```
+
+After running this, open the generated report(s):
+
+- `packages/backend/coverage/index.html`
+- `packages/frontend/coverage/index.html`
+
+## Security Audit Report
+
+Run the npm audit report:
+
+```bash
+npm run audit
+```
+
+A snapshot of the last audit run is stored at:
+
+- `docs/security-audit.json`
+
+## Accessibility Report
+
+The end-to-end test suite includes an accessibility scan that generates a report under:
+
+- `docs/accessibility-report.json`
+
+To regenerate it, run:
+
+```bash
+npm run e2e
+```
+
 ## Containerized Development (Docker)
 
 ### Start development environment
