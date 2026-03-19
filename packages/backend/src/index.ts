@@ -1,7 +1,7 @@
 import cors from "cors";
 import "dotenv/config";
 import express from "express";
-import notesRouter from "./routes/notes";
+import notesRouter from "./routes/notes.ts";
 
 const app = express();
 

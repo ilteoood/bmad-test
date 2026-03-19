@@ -3,9 +3,9 @@ import {
     createNote,
     deleteNote,
     listNotes,
-    NoteUpdateInput,
+    type NoteUpdateInput,
     updateNote
-} from "../services/noteService";
+} from "../services/noteService.ts";
 
 const router = express.Router();
 
