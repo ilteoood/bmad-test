@@ -1,0 +1,13 @@
+{
+  "name": "bmad-test",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "npm -ws test",
+    "build": "npm -ws build",
+    "lint": "npm -ws lint"
+  }
+}

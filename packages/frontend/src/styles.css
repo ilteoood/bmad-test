@@ -1,0 +1,99 @@
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #0c0f17;
+  color: #e9ecef;
+}
+
+.app {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 2rem;
+}
+
+.subtitle {
+  margin: 0.25rem 0 1.5rem;
+  color: #9ca3af;
+}
+
+.input textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid #2b2f3d;
+  background: #121827;
+  color: #e9ecef;
+  resize: vertical;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.actions button {
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid #374151;
+  background: #1f2937;
+  color: #e9ecef;
+  cursor: pointer;
+}
+
+.actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.status {
+  color: #9ca3af;
+}
+
+.notes {
+  margin-top: 2rem;
+}
+
+.notes ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.notes li {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid #2b2f3d;
+  background: #0f172a;
+  margin-bottom: 0.75rem;
+}
+
+.notes li.completed {
+  opacity: 0.7;
+}
+
+.note-content span {
+  margin-left: 0.5rem;
+}
+
+.note-actions button {
+  background: transparent;
+  border: 1px solid #374151;
+  color: #e9ecef;
+  border-radius: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  cursor: pointer;
+}
+
+.empty {
+  color: #9ca3af;
+}

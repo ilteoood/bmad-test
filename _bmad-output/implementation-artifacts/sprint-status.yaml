@@ -1,5 +1,5 @@
 # generated: 2026-03-17T22:00:44Z
-# last_updated: 2026-03-17T22:00:44Z
+# last_updated: 2026-03-17T23:27:00Z
 # project: bmad-test
 # project_key: NOKEY
 # tracking_system: file-system
@@ -43,7 +43,7 @@ story_location: /Users/ilteoood/Documents/git/personal/bmad-test/_bmad-output/im
 
 development_status:
   epic-1: in-progress
-  1-1-core-note-capture: ready-for-dev
+  1-1-core-note-capture: review
   1-2-offline-queue-and-sync: ready-for-dev
   1-3-undo-restore: ready-for-dev
   1-4-ci-and-docker: ready-for-dev
